@@ -2,6 +2,7 @@ use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 use yew::prelude::*;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::window;
+use js_sys::Date;
 
 use crate::game_components::{mouse_handler::MouseHandler, player::Player};
 
@@ -10,6 +11,7 @@ pub struct GameControl {
     pub player: Player,
     canvas: NodeRef,
     callback: Closure<dyn FnMut()>,
+    last_update: f64,
 }
 
 pub enum GameMsg {
@@ -46,7 +48,8 @@ impl Component for GameControl {
             mouse: MouseHandler::new(),
             player: Player::new(100.0, 100.0),
             canvas: NodeRef::default(),
-            callback: callback
+            callback: callback,
+            last_update: Date::now(),
         }
     }
 
@@ -56,8 +59,12 @@ impl Component for GameControl {
                 self.mouse.mouse_down = true;
                 let dist = self.player.dist_from_player(evt.0, evt.1);
                 if dist < self.player.player_size() {
-                    self.player.is_moving = true;
+                    self.player.set_moving();
+                    // self.player.is_moving = true;
+                } else {
+                    self.mouse.click(evt.0, evt.1);
                 }
+                
                 true
             },
             GameMsg::MouseUp(_evt) => {
@@ -163,12 +170,18 @@ impl Component for GameControl {
 
 impl GameControl {
     fn game_update(&mut self) {
+        let cur_time = Date::now();
+        let diff = cur_time - self.last_update;
+
+        self.last_update = cur_time;
+
         if self.player.is_moving {
             self.player.loc.x = self.mouse.loc.x;
             self.player.loc.y = self.mouse.loc.y;
         }
 
-        self.player.update();
+        self.player.update(diff);
+        self.mouse.update(diff)
     }
 
     fn render(&mut self) {
@@ -198,7 +211,7 @@ impl GameControl {
             self.player.render(&mut ctx);
 
             self.mouse.render(&mut ctx);
-            
+
             window()
                 .unwrap()
                 .request_animation_frame(self.callback.as_ref().unchecked_ref())
