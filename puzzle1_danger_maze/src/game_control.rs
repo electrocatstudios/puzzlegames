@@ -4,17 +4,21 @@ use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::window;
 use js_sys::Date;
 use gloo_console::log;
+use gloo_net::http::Request;
 
 use crate::game_components::{danger_block::DangerBlock, goal::Goal, mouse_handler::MouseHandler, player::Player};
+use crate::levels::level_model::*;
 
 pub struct GameControl {
     pub mouse: MouseHandler,
     pub player: Player,
+    cur_level: i32,
     blocks: Vec::<DangerBlock>,
     goal: Goal,
     canvas: NodeRef,
     callback: Closure<dyn FnMut()>,
     last_update: f64,
+    is_loading: bool,
 }
 
 pub enum GameMsg {
@@ -26,6 +30,8 @@ pub enum GameMsg {
     TouchMove((f64, f64)),
     KeyDown(String),
     KeyUp(String),
+    LoadLevel(i32),
+    LevelLoad(LevelModel),
     Render,
     Null
 }
@@ -44,23 +50,26 @@ impl Component for GameControl {
         let comp_ctx = ctx.link().clone();
         let callback =
             Closure::wrap(Box::new(move || comp_ctx.send_message(GameMsg::Render)) as Box<dyn FnMut()>);
-       
+
         ctx.link().send_message(GameMsg::Render);
-        let mut blocks = Vec::<DangerBlock>::new();
-        blocks.push(DangerBlock::new(200.0, 0.0, 400.0, 200.0));
+
+        let comp_ctx = ctx.link().clone();
+        comp_ctx.send_message(GameMsg::LoadLevel(1));
 
         GameControl{
             mouse: MouseHandler::new(),
             player: Player::new(100.0, 100.0),
-            blocks: blocks,
+            cur_level: 1,
+            blocks: Vec::<DangerBlock>::new(),
             goal: Goal::new(1100.0, 400.0),
             canvas: NodeRef::default(),
             callback: callback,
             last_update: Date::now(),
+            is_loading: true,
         }
     }
 
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool{
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool{
         match msg {
             GameMsg::MouseDown(evt) => {
                 self.mouse.mouse_down = true;
@@ -110,8 +119,49 @@ impl Component for GameControl {
             GameMsg::KeyUp(_key) => {
                 true
             },
+            GameMsg::LoadLevel(level_num) => {
+                self.is_loading = true;
+                let comp_ctx = ctx.link().clone();
+                self.cur_level = level_num;
+                wasm_bindgen_futures::spawn_local(async move {
+                    let lvl_str = format!("/assets/levels/level{}.json", level_num);
+                    log!(lvl_str.clone());
+                    let fetched_level = Request::get(lvl_str.as_str())
+                                .send()
+                                .await
+                                .unwrap()
+                                .json::<LevelModel>()
+                                .await
+                                .unwrap();
+                    
+                    comp_ctx.send_message(GameMsg::LevelLoad(fetched_level));
+                });
+                false
+            },
+            GameMsg::LevelLoad(level_model) => {
+                self.player.is_moving = false;
+                self.player.loc.x = level_model.player.x;
+                self.player.loc.y = level_model.player.y;
+                
+                self.goal.circle.loc.x = level_model.goal.x;
+                self.goal.circle.loc.y = level_model.goal.y;
+                
+                let mut blocks = Vec::<DangerBlock>::new();
+                for b in level_model.danger_blocks.iter() {
+                    blocks.push(DangerBlock::new(b.x, b.y, b.w, b.h));
+                }
+                self.blocks = blocks;
+                let comp_ctx = ctx.link().clone();
+                comp_ctx.send_message(GameMsg::Render);
+                self.is_loading = false;
+                true
+            },
             GameMsg::Render => {
-                self.render();
+                let res = self.render();
+                if res != 0 {
+                    let comp_ctx = ctx.link().clone();
+                    comp_ctx.send_message(GameMsg::LoadLevel(res));
+                }
                 true
             },
             GameMsg::Null => {
@@ -176,7 +226,7 @@ impl Component for GameControl {
 }
 
 impl GameControl {
-    fn game_update(&mut self) {
+    fn game_update(&mut self) -> i32 {
         let cur_time = Date::now();
         let diff = cur_time - self.last_update;
 
@@ -203,12 +253,22 @@ impl GameControl {
 
         let win_dist = self.goal.get_dist() + self.player.player_size();
         if self.player.dist_from_player(self.goal.circle.loc.x, self.goal.circle.loc.y) < win_dist {
-            log!("We have hit the goal");
+            self.cur_level + 1
+        } else {
+            0
         }
+
     }
 
-    fn render(&mut self) {
-        self.game_update();
+    fn render(&mut self) -> i32 {
+        if self.is_loading {
+            return 0;
+        }
+
+        let res = self.game_update();
+        if res != 0 {
+            return res;
+        }
 
         let canvas: HtmlCanvasElement = self.canvas.cast().unwrap();
         
@@ -219,33 +279,32 @@ impl GameControl {
         let mut ctx: CanvasRenderingContext2d =
             canvas.get_context("2d").unwrap().unwrap().unchecked_into();
 
-            ctx.set_fill_style(&JsValue::from("rgb(55, 55, 55)"));
-            ctx.fill_rect(0.0, 0.0, GAME_WIDTH, GAME_HEIGHT);
+        ctx.set_fill_style(&JsValue::from("rgb(55, 55, 55)"));
+        ctx.fill_rect(0.0, 0.0, GAME_WIDTH, GAME_HEIGHT);
 
-            // Game border
-            ctx.set_stroke_style(&JsValue::from("rgb(255, 255, 0)"));
-            ctx.move_to(0.0, 0.0);
-            ctx.line_to(GAME_WIDTH, 0.0);
-            ctx.line_to(GAME_WIDTH, GAME_HEIGHT);
-            ctx.line_to(0.0, GAME_HEIGHT);
-            ctx.line_to(0.0, 0.0);
-            ctx.stroke();
+        // Game border
+        ctx.set_stroke_style(&JsValue::from("rgb(255, 255, 0)"));
+        ctx.move_to(0.0, 0.0);
+        ctx.line_to(GAME_WIDTH, 0.0);
+        ctx.line_to(GAME_WIDTH, GAME_HEIGHT);
+        ctx.line_to(0.0, GAME_HEIGHT);
+        ctx.line_to(0.0, 0.0);
+        ctx.stroke();
         
+        // Start game render
+        for block in self.blocks.iter_mut() {
+            block.render(&mut ctx);
+        }
+        self.goal.render(&mut ctx);
 
-            // Start game render
+        self.player.render(&mut ctx);
+        self.mouse.render(&mut ctx);
 
-            for block in self.blocks.iter_mut() {
-                block.render(&mut ctx);
-            }
-            self.goal.render(&mut ctx);
+        window()
+            .unwrap()
+            .request_animation_frame(self.callback.as_ref().unchecked_ref())
+            .unwrap();
 
-            self.player.render(&mut ctx);
-            self.mouse.render(&mut ctx);
-
-            window()
-                .unwrap()
-                .request_animation_frame(self.callback.as_ref().unchecked_ref())
-                .unwrap();
-    
+        0
     }
 }
