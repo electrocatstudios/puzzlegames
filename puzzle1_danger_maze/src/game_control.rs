@@ -3,12 +3,15 @@ use yew::prelude::*;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::window;
 use js_sys::Date;
+use gloo_console::log;
 
-use crate::game_components::{mouse_handler::MouseHandler, player::Player};
+use crate::game_components::{danger_block::DangerBlock, goal::Goal, mouse_handler::MouseHandler, player::Player};
 
 pub struct GameControl {
     pub mouse: MouseHandler,
     pub player: Player,
+    blocks: Vec::<DangerBlock>,
+    goal: Goal,
     canvas: NodeRef,
     callback: Closure<dyn FnMut()>,
     last_update: f64,
@@ -43,17 +46,21 @@ impl Component for GameControl {
             Closure::wrap(Box::new(move || comp_ctx.send_message(GameMsg::Render)) as Box<dyn FnMut()>);
        
         ctx.link().send_message(GameMsg::Render);
-       
+        let mut blocks = Vec::<DangerBlock>::new();
+        blocks.push(DangerBlock::new(200.0, 0.0, 400.0, 200.0));
+
         GameControl{
             mouse: MouseHandler::new(),
             player: Player::new(100.0, 100.0),
+            blocks: blocks,
+            goal: Goal::new(1100.0, 400.0),
             canvas: NodeRef::default(),
             callback: callback,
             last_update: Date::now(),
         }
     }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool{
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool{
         match msg {
             GameMsg::MouseDown(evt) => {
                 self.mouse.mouse_down = true;
@@ -97,10 +104,10 @@ impl Component for GameControl {
                 // log!("Event here TouchMove => ", evt.0, evt.1);
                 true
             },
-            GameMsg::KeyDown(key) => {
+            GameMsg::KeyDown(_key) => {
                 true
             },
-            GameMsg::KeyUp(key) => {
+            GameMsg::KeyUp(_key) => {
                 true
             },
             GameMsg::Render => {
@@ -180,8 +187,24 @@ impl GameControl {
             self.player.loc.y = self.mouse.loc.y;
         }
 
+        self.goal.update(diff);
         self.player.update(diff);
-        self.mouse.update(diff)
+        self.mouse.update(diff);
+        for block in self.blocks.iter_mut() {
+            block.update(diff);
+            
+            let points = self.player.get_sample_points();
+            for pt in points.iter() {
+                if block.point_inside(pt.x, pt.y) {
+                    self.player.reset();
+                }
+            }
+        }
+
+        let win_dist = self.goal.get_dist() + self.player.player_size();
+        if self.player.dist_from_player(self.goal.circle.loc.x, self.goal.circle.loc.y) < win_dist {
+            log!("We have hit the goal");
+        }
     }
 
     fn render(&mut self) {
@@ -207,9 +230,16 @@ impl GameControl {
             ctx.line_to(0.0, GAME_HEIGHT);
             ctx.line_to(0.0, 0.0);
             ctx.stroke();
-    
-            self.player.render(&mut ctx);
+        
 
+            // Start game render
+
+            for block in self.blocks.iter_mut() {
+                block.render(&mut ctx);
+            }
+            self.goal.render(&mut ctx);
+
+            self.player.render(&mut ctx);
             self.mouse.render(&mut ctx);
 
             window()
@@ -217,6 +247,5 @@ impl GameControl {
                 .request_animation_frame(self.callback.as_ref().unchecked_ref())
                 .unwrap();
     
-
     }
 }

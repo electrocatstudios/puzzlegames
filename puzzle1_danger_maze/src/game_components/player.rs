@@ -5,6 +5,7 @@ use std::vec::Vec;
 use crate::utils::{Circle, Point};
 
 pub struct Player {
+    pub start: Point<f64>,
     pub loc: Point<f64>,
     pub is_moving: bool,
     indicator: Vec::<Circle<f64>>
@@ -14,9 +15,12 @@ const PLAYER_SIZE: f64 = 20.0;
 const PLAYER_INDICATOR_GROWTH_SPEED: f64 = 0.06;
 const PLAYER_INDICATOR_MAX_SIZE: f64 = 30.0;
 
+const PLAYER_SAMPLE_NUM: f64 = 8.0;
+
 impl Player {
     pub fn new(x: f64, y: f64) -> Self {
         Player {
+            start: Point::<f64>::new(x,y),
             loc: Point::<f64>::new(x,y),
             is_moving: false,
             indicator: Vec::new()
@@ -79,5 +83,27 @@ impl Player {
     pub fn set_moving(&mut self) {
         self.indicator.push(Circle::<f64>::new(self.loc.x, self.loc.y, PLAYER_SIZE));
         self.is_moving = true;
+    }
+
+    pub fn get_sample_points(&self) -> Vec::<Point<f64>> {
+        let mut ret = Vec::new();
+        let step_size = std::f64::consts::PI * 2.0 / PLAYER_SAMPLE_NUM;
+        let mut cur = 0.0;
+        while cur < std::f64::consts::PI * 2.0 {
+            ret.push(
+                Point::new(
+                    self.loc.x + (cur.sin() * self.player_size()),
+                    self.loc.y + (cur.cos() * self.player_size())
+                )
+            );
+            cur += step_size;
+        }
+        ret
+    }
+
+    pub fn reset(&mut self) {
+        self.loc.x = self.start.x;
+        self.loc.y = self.start.y;
+        self.is_moving = false;
     }
 }
