@@ -10,6 +10,7 @@ use crate::game_components::{danger_block::DangerBlock, goal::Goal, mouse_handle
 use crate::levels::level_model::*;
 
 pub struct GameControl {
+    state: String,
     pub mouse: MouseHandler,
     pub player: Player,
     cur_level: i32,
@@ -57,6 +58,7 @@ impl Component for GameControl {
         comp_ctx.send_message(GameMsg::LoadLevel(1));
 
         GameControl{
+            state: "PLAY".to_string(),
             mouse: MouseHandler::new(),
             player: Player::new(100.0, 100.0),
             cur_level: 1,
@@ -81,6 +83,12 @@ impl Component for GameControl {
                     self.mouse.click(evt.0, evt.1);
                 }
                 
+                if self.state == "WIN" {
+                    self.state = "PLAY".to_string();
+                    let comp_ctx = ctx.link().clone();
+                    comp_ctx.send_message(GameMsg::LoadLevel(self.cur_level + 1));
+                }
+
                 true
             },
             GameMsg::MouseUp(_evt) => {
@@ -120,6 +128,7 @@ impl Component for GameControl {
                 true
             },
             GameMsg::LoadLevel(level_num) => {
+               
                 self.is_loading = true;
                 let comp_ctx = ctx.link().clone();
                 self.cur_level = level_num;
@@ -157,11 +166,7 @@ impl Component for GameControl {
                 true
             },
             GameMsg::Render => {
-                let res = self.render();
-                if res != 0 {
-                    let comp_ctx = ctx.link().clone();
-                    comp_ctx.send_message(GameMsg::LoadLevel(res));
-                }
+                self.render();
                 true
             },
             GameMsg::Null => {
@@ -226,7 +231,7 @@ impl Component for GameControl {
 }
 
 impl GameControl {
-    fn game_update(&mut self) -> i32 {
+    fn game_update(&mut self) {
         let cur_time = Date::now();
         let diff = cur_time - self.last_update;
 
@@ -253,22 +258,18 @@ impl GameControl {
 
         let win_dist = self.goal.get_dist() + self.player.player_size();
         if self.player.dist_from_player(self.goal.circle.loc.x, self.goal.circle.loc.y) < win_dist {
-            self.cur_level + 1
-        } else {
-            0
-        }
+            self.state = "WIN".to_string();
+        } 
 
     }
 
-    fn render(&mut self) -> i32 {
+    fn render(&mut self) {
         if self.is_loading {
-            return 0;
+            return;
         }
 
-        let res = self.game_update();
-        if res != 0 {
-            return res;
-        }
+        self.game_update();
+     
 
         let canvas: HtmlCanvasElement = self.canvas.cast().unwrap();
         
@@ -304,7 +305,5 @@ impl GameControl {
             .unwrap()
             .request_animation_frame(self.callback.as_ref().unchecked_ref())
             .unwrap();
-
-        0
     }
 }
