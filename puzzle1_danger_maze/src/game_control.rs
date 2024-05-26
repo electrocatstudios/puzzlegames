@@ -3,10 +3,11 @@ use yew::prelude::*;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::window;
 
-use crate::game_components::player::Player;
+use crate::game_components::{mouse_handler::MouseHandler, player::Player};
 
 pub struct GameControl {
-    player: Player,
+    pub mouse: MouseHandler,
+    pub player: Player,
     canvas: NodeRef,
     callback: Closure<dyn FnMut()>,
 }
@@ -42,6 +43,7 @@ impl Component for GameControl {
         ctx.link().send_message(GameMsg::Render);
        
         GameControl{
+            mouse: MouseHandler::new(),
             player: Player::new(100.0, 100.0),
             canvas: NodeRef::default(),
             callback: callback
@@ -51,25 +53,40 @@ impl Component for GameControl {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool{
         match msg {
             GameMsg::MouseDown(evt) => {
+                self.mouse.mouse_down = true;
+                let dist = self.player.dist_from_player(evt.0, evt.1);
+                if dist < self.player.player_size() {
+                    self.player.is_moving = true;
+                }
                 true
             },
             GameMsg::MouseUp(_evt) => {
+                self.mouse.mouse_down = false;
+                self.player.is_moving = false;
                 true
             },
             GameMsg::MouseMove(evt) => {
+                self.mouse.update_pos(evt.0, evt.1);
                 // log!("Event here => ", self.mousehandler.offset_x, self.mousehandler.offset_y);
                 true
             },
             GameMsg::TouchStart(evt) => {
                 // log!("Event here TouchStart => ", evt.0, evt.1);
+                self.mouse.mouse_down = true;
+                let dist = self.player.dist_from_player(evt.0, evt.1);
+                if dist < self.player.player_size() {
+                    self.player.is_moving = true;
+                }
                 true
             },
             GameMsg::TouchEnd(_evt) => {
                 // log!("Event here TouchEnd => ", evt.0, evt.1);
+                self.mouse.mouse_down = false;
+                self.player.is_moving = false;
                 true
             },
             GameMsg::TouchMove(evt) => {
-                
+                self.mouse.update_pos(evt.0, evt.1);
                 // log!("Event here TouchMove => ", evt.0, evt.1);
                 true
             },
@@ -146,6 +163,11 @@ impl Component for GameControl {
 
 impl GameControl {
     fn game_update(&mut self) {
+        if self.player.is_moving {
+            self.player.loc.x = self.mouse.loc.x;
+            self.player.loc.y = self.mouse.loc.y;
+        }
+
         self.player.update();
     }
 
@@ -175,7 +197,8 @@ impl GameControl {
     
             self.player.render(&mut ctx);
 
-
+            self.mouse.render(&mut ctx);
+            
             window()
                 .unwrap()
                 .request_animation_frame(self.callback.as_ref().unchecked_ref())
