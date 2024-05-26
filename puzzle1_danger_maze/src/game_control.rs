@@ -40,8 +40,8 @@ pub enum GameMsg {
 #[derive(Clone, Debug, PartialEq, Eq, Properties)]
 pub struct GameControlProps;
 
-const GAME_HEIGHT: f64 = 800.0;
-const GAME_WIDTH: f64 = 1280.0;
+pub const GAME_HEIGHT: f64 = 800.0;
+pub const GAME_WIDTH: f64 = 1280.0;
 
 impl Component for GameControl {
     type Message = GameMsg;
@@ -242,9 +242,10 @@ impl GameControl {
             self.player.loc.y = self.mouse.loc.y;
         }
 
-        self.goal.update(diff);
+        self.goal.update(diff, self.state == "WIN");
         self.player.update(diff);
         self.mouse.update(diff);
+
         for block in self.blocks.iter_mut() {
             block.update(diff);
             
@@ -298,7 +299,24 @@ impl GameControl {
         }
         self.goal.render(&mut ctx);
 
-        self.player.render(&mut ctx);
+        if self.state == "PLAY" {
+            self.player.render(&mut ctx);
+        } else if self.state == "WIN" {
+            ctx.set_fill_style(&JsValue::from("rgb(0,0,0)"));
+            ctx.set_font("128px arial");
+            let load_string = "GOAL";
+            let _ = ctx.fill_text(load_string, 305.0, 355.0);
+
+            ctx.set_fill_style(&JsValue::from("rgb(255,0,0)"));
+            let _ = ctx.fill_text(load_string, 300.0, 350.0);
+
+            ctx.set_font("64px arial");
+            ctx.set_fill_style(&JsValue::from("rgb(0,0,0)"));
+            let load_string = "Click to continue";
+            let _ = ctx.fill_text(load_string, 303.0, 453.0);
+            ctx.set_fill_style(&JsValue::from("rgb(255,0,0)"));
+            let _ = ctx.fill_text(load_string, 300.0, 450.0);
+        }
         self.mouse.render(&mut ctx);
 
         window()
