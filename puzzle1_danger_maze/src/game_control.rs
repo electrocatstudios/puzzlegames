@@ -9,6 +9,7 @@ use gloo_net::http::Request;
 use crate::game_components::image::Image;
 use crate::game_components::{danger_block::DangerBlock, goal::Goal, mouse_handler::MouseHandler, player::Player};
 use crate::levels::level_model::*;
+use crate::utils;
 
 pub struct GameControl {
     state: String,
@@ -21,6 +22,7 @@ pub struct GameControl {
     canvas: NodeRef,
     callback: Closure<dyn FnMut()>,
     last_update: f64,
+    cur_time: f64,
     is_loading: bool,
 }
 
@@ -70,6 +72,7 @@ impl Component for GameControl {
             canvas: NodeRef::default(),
             callback: callback,
             last_update: Date::now(),
+            cur_time: 0.0,
             is_loading: true,
         }
     }
@@ -170,6 +173,8 @@ impl Component for GameControl {
 
                 let comp_ctx = ctx.link().clone();
                 comp_ctx.send_message(GameMsg::Render);
+
+                self.cur_time = 0.0;
                 self.is_loading = false;
                 true
             },
@@ -242,6 +247,10 @@ impl GameControl {
     fn game_update(&mut self) {
         let cur_time = Date::now();
         let diff = cur_time - self.last_update;
+        
+        if self.state != "WIN" {
+            self.cur_time += diff;
+        }
 
         self.last_update = cur_time;
 
@@ -312,23 +321,30 @@ impl GameControl {
 
         self.goal.render(&mut ctx);
 
+        // Level string
+        ctx.set_font("64px arial");
+        let level_str = format!("Level: {}", self.cur_level);
+        utils::drop_shadow_string(&mut ctx, level_str, 1010.0, 750.0);
+        
+        // Time String
+        let time_str = self.get_time_str();
+        utils::drop_shadow_string(&mut ctx, time_str, 20.0, 750.0);
+
         if self.state == "PLAY" {
             self.player.render(&mut ctx);
         } else if self.state == "WIN" {
+            // Win screen prompt
             ctx.set_fill_style(&JsValue::from("rgb(0,0,0)"));
             ctx.set_font("128px arial");
             let load_string = "GOAL";
+            
             let _ = ctx.fill_text(load_string, 305.0, 355.0);
-
             ctx.set_fill_style(&JsValue::from("rgb(255,0,0)"));
             let _ = ctx.fill_text(load_string, 300.0, 350.0);
 
             ctx.set_font("64px arial");
-            ctx.set_fill_style(&JsValue::from("rgb(0,0,0)"));
-            let load_string = "Click to continue";
-            let _ = ctx.fill_text(load_string, 303.0, 453.0);
-            ctx.set_fill_style(&JsValue::from("rgb(255,0,0)"));
-            let _ = ctx.fill_text(load_string, 300.0, 450.0);
+            let load_string = "Click to continue".to_string();
+            utils::drop_shadow_string(&mut ctx, load_string, 300.0, 450.0);
         }
         self.mouse.render(&mut ctx);
 
@@ -336,5 +352,19 @@ impl GameControl {
             .unwrap()
             .request_animation_frame(self.callback.as_ref().unchecked_ref())
             .unwrap();
+    }
+
+    fn get_time_str(&self) -> String {
+        if self.goal.circle.loc.x > GAME_WIDTH || self.goal.circle.loc.y > GAME_HEIGHT {
+            // TODO - add in results table 
+            return "".to_string();
+        }
+
+        let time_sec = (self.cur_time / 1000.0).floor();
+        let time_ms = ((self.cur_time - (time_sec * 1000.0)) / 10.0).floor();
+        let time_str_sec = utils::format_time_3_digits(time_sec);
+        let time_str_ms = utils::format_time_2_digits(time_ms);
+
+        format!("Time: {}.{}",time_str_sec, time_str_ms)
     }
 }
