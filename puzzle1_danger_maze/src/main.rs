@@ -8,7 +8,7 @@ mod levels;
 
 #[derive(Clone, Routable, PartialEq)]
 enum Route {
-    #[at("/")]
+    #[at("/danger_maze")]
     Home,
 }
 
