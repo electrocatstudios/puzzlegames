@@ -1,0 +1,8 @@
+{
+    "player": {"x": 100.0, "y": 100.0},
+    "goal": {"x": 1600.0, "y": 0.0},
+    "danger_blocks": [],
+    "images": [
+        {"filename": "./assets/img/congratulations.png", "x": 640.0, "y": 400.0}
+    ]
+}

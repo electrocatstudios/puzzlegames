@@ -154,9 +154,8 @@ impl Component for GameControl {
             },
             GameMsg::LevelLoad(level_model) => {
                 self.player.is_moving = false;
-                self.player.loc.x = level_model.player.x;
-                self.player.loc.y = level_model.player.y;
-                
+                self.player.set_start(level_model.player.x, level_model.player.y);
+        
                 self.goal.circle.loc.x = level_model.goal.x;
                 self.goal.circle.loc.y = level_model.goal.y;
                 

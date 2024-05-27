@@ -106,4 +106,9 @@ impl Player {
         self.loc.y = self.start.y;
         self.is_moving = false;
     }
+
+    pub fn set_start(&mut self, x: f64, y: f64) {
+        self.start = Point::new(x,y);
+        self.loc = Point::new(x,y);
+    }
 }
