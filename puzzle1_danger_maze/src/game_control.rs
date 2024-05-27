@@ -6,6 +6,7 @@ use js_sys::Date;
 use gloo_console::log;
 use gloo_net::http::Request;
 
+use crate::game_components::image::Image;
 use crate::game_components::{danger_block::DangerBlock, goal::Goal, mouse_handler::MouseHandler, player::Player};
 use crate::levels::level_model::*;
 
@@ -15,6 +16,7 @@ pub struct GameControl {
     pub player: Player,
     cur_level: i32,
     blocks: Vec::<DangerBlock>,
+    images: Vec::<Image>,
     goal: Goal,
     canvas: NodeRef,
     callback: Closure<dyn FnMut()>,
@@ -63,6 +65,7 @@ impl Component for GameControl {
             player: Player::new(100.0, 100.0),
             cur_level: 1,
             blocks: Vec::<DangerBlock>::new(),
+            images: Vec::<Image>::new(),
             goal: Goal::new(1100.0, 400.0),
             canvas: NodeRef::default(),
             callback: callback,
@@ -160,6 +163,12 @@ impl Component for GameControl {
                     blocks.push(DangerBlock::new(b.x, b.y, b.w, b.h));
                 }
                 self.blocks = blocks;
+                let mut images = Vec::<Image>::new();
+                for i in level_model.images.iter() {
+                    images.push(Image::new(i.filename.clone(), i.x, i.y))
+                }
+                self.images = images;
+
                 let comp_ctx = ctx.link().clone();
                 comp_ctx.send_message(GameMsg::Render);
                 self.is_loading = false;
@@ -296,6 +305,11 @@ impl GameControl {
         for block in self.blocks.iter_mut() {
             block.render(&mut ctx);
         }
+
+        for image in self.images.iter_mut() {
+            image.render(&mut ctx);
+        }
+
         self.goal.render(&mut ctx);
 
         self.player.render(&mut ctx);
