@@ -131,12 +131,11 @@ impl Component for GameControl {
                 true
             },
             GameMsg::LoadLevel(level_num) => {
-               
                 self.is_loading = true;
                 let comp_ctx = ctx.link().clone();
                 self.cur_level = level_num;
                 wasm_bindgen_futures::spawn_local(async move {
-                    let lvl_str = format!("/assets/levels/level{}.json", level_num);
+                    let lvl_str = format!("assets/levels/level{}.json", level_num);
                     log!(lvl_str.clone());
                     let fetched_level = Request::get(lvl_str.as_str())
                                 .send()
