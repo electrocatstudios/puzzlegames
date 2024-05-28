@@ -6,11 +6,19 @@ use js_sys::Date;
 use gloo_console::log;
 use std::vec::Vec;
 
+use crate::game_components::goal::Goal;
+use crate::game_components::player::Player;
+use crate::levels::level_model::{LevelBlockModel, LevelCircleModel, LevelModel};
+use crate::utils::Point;
 use crate::{game_components::{danger_block::DangerBlock, danger_circle::DangerCircle, mouse_handler::MouseHandler}, utils};
 
 pub struct LevelBuilder {
     state: String,
     pub mouse: MouseHandler,
+    start: Point<f64>,
+    end: Point<f64>,
+    player: Player,
+    goal: Goal,
     blocks: Vec::<DangerBlock>, 
     circles: Vec::<DangerCircle>,
     canvas: NodeRef,
@@ -52,6 +60,10 @@ impl Component for LevelBuilder {
         LevelBuilder{
             state: "BLOCKS".to_string(),
             mouse: MouseHandler::new(),
+            start: Point::new(0.0,0.0),
+            end: Point::new(0.0,0.0),
+            player: Player::new(100.0,100.0),
+            goal: Goal::new(1000.0, 700.0),
             blocks: Vec::<DangerBlock>::new(), 
             circles: Vec::<DangerCircle>::new(),
             canvas: NodeRef::default(),
@@ -67,6 +79,16 @@ impl Component for LevelBuilder {
                 self.mouse.mouse_down = true;
 
                 self.mouse.click(evt.0, evt.1);
+                self.start.x = evt.0;
+                self.start.y = evt.1;
+
+                if self.state == "PLAYER" {
+                    self.player.loc.x = evt.0;
+                    self.player.loc.y = evt.1;
+                } else if self.state == "GOAL" {
+                    self.goal.circle.loc.x = evt.0;
+                    self.goal.circle.loc.y = evt.1;
+                }
 
                 true
             },
@@ -76,6 +98,11 @@ impl Component for LevelBuilder {
             },
             LevelBuildMsg::MouseMove(evt) => {
                 self.mouse.update_pos(evt.0, evt.1);
+
+                if self.mouse.mouse_down {
+                    self.end.x = evt.0;
+                    self.end.y = evt.1;
+                }
 
                 // log!("Event here => ", self.mouse.loc.x, self.mouse.loc.y);
                 true
@@ -95,7 +122,21 @@ impl Component for LevelBuilder {
                 // log!("Event here TouchMove => ", evt.0, evt.1);
                 true
             },
-            LevelBuildMsg::KeyDown(_key) => {
+            LevelBuildMsg::KeyDown(key) => {
+                if key == "KeyC" {
+                    self.state = "CIRCLES".to_string();
+                } else if key == "KeyB" {
+                    self.state = "BLOCKS".to_string();
+                } else if key == "KeyP" {
+                    self.state = "PLAYER".to_string();
+                } else if key == "KeyG" {
+                    self.state = "GOAL".to_string();
+                } else if key == "KeyQ" {
+                    self.blocks = Vec::new();
+                    self.circles = Vec::new();
+                } else if key == "KeyS" {
+                    self.save_data();
+                }
                 true
             },
             LevelBuildMsg::KeyUp(_key) => {
@@ -177,6 +218,41 @@ impl LevelBuilder {
         self.last_update = cur_time;
 
         self.mouse.update(diff);
+
+        
+        if self.mouse.mouse_down == false
+             && self.start.x != 0.0 && self.start.y != 0.0 
+             && self.end.x != 0.0 && self.end.y != 0.0 {
+            // Save the new block
+            if self.state == "BLOCKS" {
+                self.blocks.push(
+                    DangerBlock::new(
+                        self.start.x,
+                        self.start.y,
+                        self.end.x - self.start.x,
+                        self.end.y - self.start.y
+                    )
+                );
+            } else if self.state == "CIRCLES" {
+                let rad = utils::dist_between_points(
+                    Point::new(self.start.x, self.start.y),
+                    Point::new(self.end.x, self.end.y)
+                );
+                self.circles.push(
+                    DangerCircle::new(
+                        self.start.x,
+                        self.start.y,
+                        rad
+                    )
+                );
+            }
+            
+
+            self.start.x = 0.0;
+            self.start.y = 0.0;
+            self.end.x = 0.0;
+            self.end.y = 0.0;
+        }
     
     }
 
@@ -209,9 +285,85 @@ impl LevelBuilder {
         ctx.set_font("64px arial");
         utils::drop_shadow_string(&mut ctx, self.state.clone(), 20.0, 780.0);
         
+        for block in self.blocks.iter_mut() {
+            block.render(&mut ctx);
+        }
+        for circle in self.circles.iter_mut() {
+            circle.render(&mut ctx);
+        }
+
+
+        if self.state == "BLOCKS" {
+            if self.mouse.mouse_down && self.end.x != 0.0 && self.end.y != 0.0 {
+                ctx.set_fill_style(&JsValue::from("rgb(55, 55, 255)"));
+                ctx.fill_rect(
+                    self.start.x,
+                    self.start.y, 
+                    self.end.x - self.start.x,
+                    self.end.y - self.start.y
+                );
+                let _ = ctx.fill();
+                // log!("Block pos ", self.end.x - self.start.x, self.end.y - self.start.y);
+            }
+        } else if self.state == "CIRCLES" {
+            if self.mouse.mouse_down && self.end.x != 0.0 && self.end.y != 0.0 {
+                let rad = utils::dist_between_points(
+                    Point::new(self.start.x, self.start.y),
+                    Point::new(self.end.x, self.end.y)
+                );
+
+                ctx.set_fill_style(&JsValue::from("rgb(55, 55, 255)"));
+                let _ = ctx.begin_path();
+                let _ = ctx.arc(
+                    self.start.x,
+                    self.start.y,
+                    rad, 
+                    0.0, 
+                    std::f64::consts::PI * 2.0
+                );
+                let _ = ctx.fill();
+                // log!("Block pos ", self.end.x - self.start.x, self.end.y - self.start.y);
+            }
+        }
+
+        self.player.render(&mut ctx);
+        self.goal.render(&mut ctx);
+
         window()
             .unwrap()
             .request_animation_frame(self.callback.as_ref().unchecked_ref())
             .unwrap();
+    }
+
+    fn save_data(&self) {
+        let mut ret = LevelModel::new();
+        ret.player.x = self.player.loc.x;
+        ret.player.y = self.player.loc.y;
+
+        ret.goal.x = self.goal.circle.loc.x;
+        ret.goal.y = self.goal.circle.loc.y;
+
+        for b in self.blocks.iter() {
+            ret.danger_blocks.push(
+                LevelBlockModel::new(
+                    b.pos.loc.x,
+                    b.pos.loc.y,
+                    b.pos.width,
+                    b.pos.height
+                )
+            );
+        }
+
+        for c in self.circles.iter() {
+            ret.danger_circles.push(
+                LevelCircleModel::new(
+                    c.pos.loc.x,
+                    c.pos.loc.y,
+                    c.pos.size
+                )
+            );
+        }
+        let ret_str = serde_json::to_string(&ret).unwrap();
+        log!(ret_str);
     }
 }
