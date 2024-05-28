@@ -6,6 +6,7 @@ use js_sys::Date;
 use gloo_console::log;
 use gloo_net::http::Request;
 
+use crate::game_components::danger_circle::DangerCircle;
 use crate::game_components::image::Image;
 use crate::game_components::{danger_block::DangerBlock, goal::Goal, mouse_handler::MouseHandler, player::Player};
 use crate::levels::level_model::*;
@@ -17,6 +18,7 @@ pub struct GameControl {
     pub player: Player,
     cur_level: i32,
     blocks: Vec::<DangerBlock>,
+    circles: Vec::<DangerCircle>,
     images: Vec::<Image>,
     goal: Goal,
     canvas: NodeRef,
@@ -46,6 +48,7 @@ pub struct GameControlProps;
 
 pub const GAME_HEIGHT: f64 = 800.0;
 pub const GAME_WIDTH: f64 = 1280.0;
+pub const START_LEVEL: i32 = 1;
 
 impl Component for GameControl {
     type Message = GameMsg;
@@ -59,14 +62,15 @@ impl Component for GameControl {
         ctx.link().send_message(GameMsg::Render);
 
         let comp_ctx = ctx.link().clone();
-        comp_ctx.send_message(GameMsg::LoadLevel(1));
+        comp_ctx.send_message(GameMsg::LoadLevel(START_LEVEL));
 
         GameControl{
             state: "PLAY".to_string(),
             mouse: MouseHandler::new(),
             player: Player::new(100.0, 100.0),
-            cur_level: 1,
+            cur_level: START_LEVEL,
             blocks: Vec::<DangerBlock>::new(),
+            circles: Vec::<DangerCircle>::new(),
             images: Vec::<Image>::new(),
             goal: Goal::new(1100.0, 400.0),
             canvas: NodeRef::default(),
@@ -164,6 +168,13 @@ impl Component for GameControl {
                     blocks.push(DangerBlock::new(b.x, b.y, b.w, b.h));
                 }
                 self.blocks = blocks;
+
+                let mut circles = Vec::<DangerCircle>::new();
+                for c in level_model.danger_circles.iter() {
+                    circles.push(DangerCircle::new(c.x,c.y,c.r));
+                }
+                self.circles = circles;
+
                 let mut images = Vec::<Image>::new();
                 for i in level_model.images.iter() {
                     images.push(Image::new(i.filename.clone(), i.x, i.y))
@@ -261,7 +272,7 @@ impl GameControl {
         self.goal.update(diff, self.state == "WIN");
         self.player.update(diff);
         self.mouse.update(diff);
-
+        // Check collision with every block
         for block in self.blocks.iter_mut() {
             block.update(diff);
             
@@ -271,6 +282,20 @@ impl GameControl {
                     self.player.reset();
                 }
             }
+        }
+        // Check collision with circles
+        for circle in self.circles.iter_mut() {
+            circle.update(diff);
+            if circle.point_inside(self.player.loc.x, self.player.loc.y, self.player.player_size()) {
+                self.player.reset();
+            }
+        }
+        // Check bofunds for player
+        if self.player.loc.x < self.player.player_size() || self.player.loc.x > GAME_WIDTH - self.player.player_size() {
+            self.player.reset();
+        }
+        if self.player.loc.y < self.player.player_size() || self.player.loc.y > GAME_HEIGHT - self.player.player_size() {
+            self.player.reset();
         }
 
         let win_dist = self.goal.get_dist() + self.player.player_size();
@@ -312,6 +337,9 @@ impl GameControl {
         // Start game render
         for block in self.blocks.iter_mut() {
             block.render(&mut ctx);
+        }
+        for circle in self.circles.iter_mut() {
+            circle.render(&mut ctx);
         }
 
         for image in self.images.iter_mut() {
