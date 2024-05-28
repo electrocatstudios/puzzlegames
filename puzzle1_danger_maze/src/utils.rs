@@ -71,3 +71,9 @@ pub fn drop_shadow_string(ctx: &mut CanvasRenderingContext2d, text: String, x: f
     ctx.set_fill_style(&JsValue::from("rgb(255,0,0)"));
     let _ = ctx.fill_text(&text, x, y);
 }
+
+pub fn dist_between_points(pt1: Point<f64>, pt2: Point<f64>) -> f64 {
+    let diff_x = pt1.x - pt2.x;
+    let diff_y = pt1.y - pt2.y;
+    ((diff_x*diff_x) + (diff_y*diff_y)).sqrt()
+}
