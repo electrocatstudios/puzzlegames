@@ -25,6 +25,7 @@ pub struct LevelBuilder {
     callback: Closure<dyn FnMut()>,
     last_update: f64,
     cur_time: f64,
+    show_screen: i32
 }
 
 pub enum LevelBuildMsg {
@@ -36,6 +37,8 @@ pub enum LevelBuildMsg {
     TouchMove((f64, f64)),
     KeyDown(String),
     KeyUp(String),
+    MousePrevScreen,
+    MouseNextScreen,
     Render,
     Null
 }
@@ -70,6 +73,7 @@ impl Component for LevelBuilder {
             callback: callback,
             last_update: Date::now(),
             cur_time: 0.0,
+            show_screen: 1
         }
     }
 
@@ -142,6 +146,22 @@ impl Component for LevelBuilder {
             LevelBuildMsg::KeyUp(_key) => {
                 true
             },
+            LevelBuildMsg::MousePrevScreen => {
+                if self.show_screen > 1 {
+                    self.show_screen -= 1;
+                } else {
+                    self.show_screen = 1;
+                }
+                true
+            },
+            LevelBuildMsg::MouseNextScreen => {
+                if self.show_screen < 3 {
+                    self.show_screen += 1;
+                } else {
+                    self.show_screen = 2;
+                }
+                true
+            },
             LevelBuildMsg::Render => {
                 self.render();
                 true
@@ -187,25 +207,48 @@ impl Component for LevelBuilder {
             LevelBuildMsg::KeyUp(evt.code())
         });
 
+        let prev_screen_click = ctx.link().callback(move |evt: MouseEvent| {
+            LevelBuildMsg::MousePrevScreen
+        });
+        
+        let next_screen_click = ctx.link().callback(move |evt: MouseEvent| {
+            LevelBuildMsg::MouseNextScreen
+        });
+
         html! { 
             <div class="game_canvas">
-                <canvas id="canvas"
-                    style={"margin: 0px; width:1280px; height: 800px; left:0px; top:0px;"}
-                    onmousedown={onmousedown}
-                    onmousemove={onmousemove}
-                    onmouseup={onmouseup}
-                    ontouchstart={ontouchstart}
-                    ontouchend={ontouchend}
-                    ontouchmove={ontouchmove}
-                    onkeydown={onkeydown}
-                    onkeyup={onkeyup}
-                    ref={self.canvas.clone()}
-                    tabindex = "1"
-                ></canvas>
+                if self.show_screen == 1 {
+                    <canvas id="canvas"
+                        style={"margin: 0px; width:1280px; height: 800px; left:0px; top:0px;"}
+                        onmousedown={onmousedown}
+                        onmousemove={onmousemove}
+                        onmouseup={onmouseup}
+                        ontouchstart={ontouchstart}
+                        ontouchend={ontouchend}
+                        ontouchmove={ontouchmove}
+                        onkeydown={onkeydown}
+                        onkeyup={onkeyup}
+                        ref={self.canvas.clone()}
+                        tabindex = "1"
+                    ></canvas><br/>
+                } else if self.show_screen == 2 {
+                    <div><h1>{"Component List"}</h1><h3>{self.get_block_list()}</h3></div>
+                } else if self.show_screen == 3 { 
+                    <div><h1>{"Key Bindings"}</h1>{self.get_help_string()}</div>
+                }else {
+                    <div>{self.show_screen} {"is an unknown state"}</div>
+                }
+                if self.show_screen != 1 {
+                    <button onclick={prev_screen_click}>{"Previous"}</button>
+                } 
+                if self.show_screen < 3 {
+                    <button onclick={next_screen_click}>{"Next"}</button>
+                }
+                
             </div>
         }
     }
-    
+
 }
 
 impl LevelBuilder {
@@ -258,7 +301,14 @@ impl LevelBuilder {
 
     fn render(&mut self) {
         self.game_update();
-
+        if self.show_screen != 1 {
+            window()
+                .unwrap()
+                .request_animation_frame(self.callback.as_ref().unchecked_ref())
+                .unwrap();
+            
+            return;
+        }
         let canvas: HtmlCanvasElement = self.canvas.cast().unwrap();
         
         // Make sure the we reset the draw surface to prevent stretching
@@ -335,7 +385,7 @@ impl LevelBuilder {
             .unwrap();
     }
 
-    fn save_data(&self) {
+    fn save_data(&self) -> String {
         let mut ret = LevelModel::new();
         ret.player.x = self.player.loc.x;
         ret.player.y = self.player.loc.y;
@@ -364,6 +414,25 @@ impl LevelBuilder {
             );
         }
         let ret_str = serde_json::to_string(&ret).unwrap();
-        log!(ret_str);
+        log!(ret_str.clone());
+        ret_str
+    }
+
+    fn get_block_list(&self) -> Html {
+        html!{
+            <h3 class={"display_area"}>{self.save_data()}</h3>            
+        }
+    }
+
+    fn get_help_string(&self) -> Html {
+        html!{
+            <h3 class={"display_area"}>
+                <h5>{"B - Blocks"}</h5>
+                <h5>{"C - Circles"}</h5>
+                <h5>{"G - Goal"}</h5>
+                <h5>{"P - Player"}</h5>
+                <h5>{"Q - Reset All"}</h5>
+            </h3>
+        }
     }
 }
