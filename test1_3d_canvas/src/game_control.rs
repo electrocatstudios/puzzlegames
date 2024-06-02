@@ -1,3 +1,4 @@
+use rand::seq::index;
 use web_sys::{ WebGlRenderingContext as GL, WebGlShader, WebGlProgram, HtmlCanvasElement};
 use yew::prelude::*;
 use wasm_bindgen::{prelude::*, JsCast};
@@ -18,6 +19,7 @@ pub struct GameControl {
     // callback: Closure<dyn FnMut()>,
     last_update: f64,
     cur_time: f64,
+    rotation: f64,
 }
 
 pub enum GameMsg {
@@ -26,6 +28,7 @@ pub enum GameMsg {
     MouseMove((f64,f64)),
     KeyDown(String),
     KeyUp(String),
+    Update,
     Render,
     Null
 }
@@ -54,6 +57,7 @@ impl Component for GameControl {
             // callback: callback,
             last_update: Date::now(),
             cur_time: 0.0,
+            rotation: 0.0,
         }
     }
 
@@ -74,11 +78,16 @@ impl Component for GameControl {
                 true
             },
             GameMsg::KeyDown(_key) => {
+                
                 true
             },
             GameMsg::KeyUp(_key) => {
                 true
             },
+            GameMsg::Update => {
+                self.game_update();
+                false
+            }
             GameMsg::Render => {
                 // self.render();
                 true
@@ -123,31 +132,49 @@ impl Component for GameControl {
         }
     }
 
-    fn rendered(&mut self, _ctx: &Context<Self>, first_render: bool) {
+    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) {
         // Only start the render loop if it's the first render
         // There's no loop cancellation taking place, so if multiple renders happen,
         // there would be multiple loops running. That doesn't *really* matter here because
         // there's no props update and no SSR is taking place, but it is something to keep in
         // consideration
+        // self.game_update();
+
         if !first_render {
             return;
         }
         // Once rendered, store references for the canvas and GL context. These can be used for
         // resizing the rendering area when the window or canvas element are resized, as well as
         // for making GL calls.
+
         let canvas = self.canvas.cast::<HtmlCanvasElement>().unwrap();
+        canvas.set_width(canvas.client_width() as u32);
+        canvas.set_height(canvas.client_height() as u32);
+
         let gl: GL = canvas
             .get_context("webgl")
             .unwrap()
             .unwrap()
             .dyn_into()
             .unwrap();
-        Self::render_gl(gl);
+
+      
+        self.render_gl(gl, ctx);
     }
 }
 
 // Code taken from https://github.com/yewstack/yew/blob/master/examples/webgl/src/main.rs 
 impl GameControl {
+
+    fn game_update(&mut self) {
+        let cur_time = Date::now();
+        let diff = cur_time - self.last_update;
+
+        let frac = diff; // / 1000.0; // Fraction of a second
+        self.rotation += diff;
+
+        self.cur_time = cur_time;
+    }
 
     fn request_animation_frame(f: &Closure<dyn FnMut()>) {
         window()
@@ -156,7 +183,7 @@ impl GameControl {
             .expect("should register `requestAnimationFrame` OK");
     }
 
-    fn render_gl(gl: GL) {
+    fn render_gl(&mut self, gl: GL, ctx: &Context<GameControl>) {
         // This should log only once -- not once per frame
 
         let mut timestamp = 0.0;
@@ -165,14 +192,28 @@ impl GameControl {
         let frag_code = include_str!("./basic.frag");
 
         // This list of vertices will draw two triangles to cover the entire canvas.
+        // let vertices: Vec<f32> = vec![
+        //     -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0,
+        // ];
+
         let vertices: Vec<f32> = vec![
-            -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0,
+           -0.5,0.5,0.0,
+            -0.5,-0.5,0.0,
+            0.5,-0.5,0.0,
         ];
+        // let indices = [0,1,2];
         let vertex_buffer = gl.create_buffer().unwrap();
         let verts = js_sys::Float32Array::from(vertices.as_slice());
 
         gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
         gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &verts, GL::STATIC_DRAW);
+        gl.bind_buffer(GL::ARRAY_BUFFER, None);
+
+        // let index_buffer = gl.create_buffer().unwrap();
+        // let inds = js_sys::Uint16Array::from(indices.as_slice());
+        // gl.bind_buffer(GL::ELEMENT_ARRAY_BUFFER, Some(&index_buffer));
+        // gl.buffer_data_with_array_buffer_view(GL::ELEMENT_ARRAY_BUFFER, &inds, GL::STATIC_DRAW);
+        // gl.bind_buffer(GL::ARRAY_BUFFER, None);
 
         let vert_shader = gl.create_shader(GL::VERTEX_SHADER).unwrap();
         gl.shader_source(&vert_shader, vert_code);
@@ -189,30 +230,52 @@ impl GameControl {
 
         gl.use_program(Some(&shader_program));
 
+        gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer) );
+        // gl.bind_buffer(GL::ELEMENT_ARRAY_BUFFER, Some(&index_buffer));
+
         // Attach the position vector as an attribute for the GL context.
-        let position = gl.get_attrib_location(&shader_program, "a_position") as u32;
-        gl.vertex_attrib_pointer_with_i32(position, 2, GL::FLOAT, false, 0, 0);
+        let position = gl.get_attrib_location(&shader_program, "coords") as u32;
+        gl.vertex_attrib_pointer_with_f64(position, 3, GL::FLOAT, false, 0, 0.0);
         gl.enable_vertex_attrib_array(position);
 
         // Attach the time as a uniform for the GL context.
         let time = gl.get_uniform_location(&shader_program, "u_time");
         gl.uniform1f(time.as_ref(), timestamp as f32);
 
-        gl.draw_arrays(GL::TRIANGLES, 0, 6);
+        let mut rot = self.rotation;
+        let rot_pos = gl.get_uniform_location(&shader_program, "rot");
+        gl.uniform1f(rot_pos.as_ref(), rot as f32);
+
+        gl.viewport(0, 0, GAME_WIDTH as i32, GAME_HEIGHT as i32);
+        gl.clear_color(0.0, 0.0, 0.0, 1.0);
+        gl.clear(GL::COLOR_BUFFER_BIT);
+
+        gl.draw_arrays(GL::TRIANGLES, 0, 3);
 
         // Gloo-render's request_animation_frame has this extra closure
         // wrapping logic running every frame, unnecessary cost.
         // Here constructing the wrapped closure just once.
 
         let cb = Rc::new(RefCell::new(None));
-
+        let comp_ctx = ctx.link().clone();
+        // let rot_ref = &self.rotation;
         *cb.borrow_mut() = Some(Closure::wrap(Box::new({
-            let cb = cb.clone();
+            let cb: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = cb.clone();
             move || {
+                comp_ctx.send_message(GameMsg::Update);
+
+                
+                // let rot_pos = gl.get_uniform_location(&shader_program, "rot");
+                rot += 0.01;
+                if rot > 2.0 {
+                    rot = 0.01;
+                }
+                gl.uniform1f(rot_pos.as_ref(), rot as f32);
+                
                 // This should repeat every frame
                 timestamp += 20.0;
                 gl.uniform1f(time.as_ref(), timestamp as f32);
-                gl.draw_arrays(GL::TRIANGLES, 0, 6);
+                gl.draw_arrays(GL::TRIANGLES, 0, 3);
                 GameControl::request_animation_frame(cb.borrow().as_ref().unwrap());
             }
         }) as Box<dyn FnMut()>));
