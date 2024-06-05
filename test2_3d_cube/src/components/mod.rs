@@ -1,2 +1,2 @@
 pub mod mouse_handler;
-pub mod square;
+pub mod cube;

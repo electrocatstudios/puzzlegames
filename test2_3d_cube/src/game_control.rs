@@ -12,14 +12,14 @@ use std::collections::HashMap;
 use core::cell::RefCell;
 use std::rc::Rc;
 
-use crate::components::square::Square;
+use crate::components::cube::Cube;
 use crate::components::mouse_handler::MouseHandler;
 use crate::utils;
 
 pub struct GameControl {
     pub mouse: MouseHandler,
     canvas: NodeRef,
-    square: Square,
+    cube: Cube,
     callback: Closure<dyn FnMut()>,
     last_update: f64,
     cur_time: f64,
@@ -58,7 +58,7 @@ impl Component for GameControl {
         GameControl{
             mouse: MouseHandler::new(),
             canvas: NodeRef::default(),
-            square: Square::new(400.0,400.0,0.0),
+            cube: Cube::new(400.0,400.0,0.0),
             callback: callback,
             last_update: Date::now(),
             cur_time: 0.0,
@@ -147,8 +147,8 @@ impl Component for GameControl {
 
 }
 
-const SQUARE_MOVE_SPEED: f64 = 0.5;
-const SQUARE_SPIN_SPEED: f64 = 0.005;
+const CUBE_MOVE_SPEED: f64 = 0.5;
+const CUBE_SPIN_SPEED: f64 = 0.005;
 // Code taken from https://github.com/yewstack/yew/blob/master/examples/webgl/src/main.rs 
 impl GameControl {
 
@@ -162,38 +162,38 @@ impl GameControl {
         self.cur_time = cur_time;
 
         if utils::is_key_pressed(&self.key_list, &"KeyA".to_string()) {
-            self.square.loc.x -= diff * SQUARE_MOVE_SPEED;
+            self.cube.loc.x -= diff * CUBE_MOVE_SPEED;
         }
         if utils::is_key_pressed(&self.key_list, &"KeyD".to_string()) {
-            self.square.loc.x += diff * SQUARE_MOVE_SPEED;
+            self.cube.loc.x += diff * CUBE_MOVE_SPEED;
         }
         if utils::is_key_pressed(&self.key_list, &"KeyW".to_string()) {
-            self.square.loc.y -= diff * SQUARE_MOVE_SPEED;
+            self.cube.loc.y -= diff * CUBE_MOVE_SPEED;
         }
         if utils::is_key_pressed(&self.key_list, &"KeyS".to_string()) {
-            self.square.loc.y += diff * SQUARE_MOVE_SPEED;
+            self.cube.loc.y += diff * CUBE_MOVE_SPEED;
         }
         if utils::is_key_pressed(&self.key_list, &"KeyT".to_string()) {
-            self.square.rot.x += diff * SQUARE_SPIN_SPEED;
+            self.cube.rot.x += diff * CUBE_SPIN_SPEED;
         }
         if utils::is_key_pressed(&self.key_list, &"KeyY".to_string()) {
-            self.square.rot.y += diff * SQUARE_SPIN_SPEED;
+            self.cube.rot.y += diff * CUBE_SPIN_SPEED;
         }
         if utils::is_key_pressed(&self.key_list, &"KeyU".to_string()) {
-            self.square.rot.z += diff * SQUARE_SPIN_SPEED;
+            self.cube.rot.z += diff * CUBE_SPIN_SPEED;
         }
 
-        if self.square.loc.x > 1280.0 {
-            self.square.loc.x = 1280.0;
-        } else if self.square.loc.x < 0.0 {
-            self.square.loc.x = 0.0;
+        if self.cube.loc.x > 1280.0 {
+            self.cube.loc.x = 1280.0;
+        } else if self.cube.loc.x < 0.0 {
+            self.cube.loc.x = 0.0;
         }
 
-        if self.square.loc.y > 800.0 {
-            self.square.loc.y = 800.0;
+        if self.cube.loc.y > 800.0 {
+            self.cube.loc.y = 800.0;
         }
-        if self.square.loc.y < 0.0 {
-            self.square.loc.y = 0.0;
+        if self.cube.loc.y < 0.0 {
+            self.cube.loc.y = 0.0;
         }
         self.last_update = cur_time;
     }
@@ -222,7 +222,7 @@ impl GameControl {
         let frag_code = include_str!("./basic.frag");
 
         let vertex_buffer = gl.create_buffer().unwrap();
-        let verts = js_sys::Float32Array::from(self.square.vertices.as_slice());
+        let verts = js_sys::Float32Array::from(self.cube.vertices.as_slice());
 
         gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
         gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &verts, GL::STATIC_DRAW);
@@ -237,13 +237,13 @@ impl GameControl {
         gl.compile_shader(&frag_shader);
 
         let shader_program = gl.create_program().unwrap();
-        // self.square.shader = gl.create_program().unwrap();
+        
         gl.attach_shader(&shader_program, &vert_shader);
         gl.attach_shader(&shader_program, &frag_shader);
         gl.link_program(&shader_program);
 
         gl.use_program(Some(&shader_program));
-        self.square.shader = Some(shader_program);
+        self.cube.shader = Some(shader_program);
         
         gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer) );
     }
@@ -264,20 +264,20 @@ impl GameControl {
         let mut timestamp = 0.0;
 
         // Attach the position vector as an attribute for the GL context.
-        match &self.square.shader {
+        match &self.cube.shader {
             Some(shader) => {
-                // log!("Rendering square");
+                
                 let position = gl.get_attrib_location(&shader, "a_position") as u32 ;
                 gl.vertex_attrib_pointer_with_f64(position, 3, GL::FLOAT, false, 0, 0.0);
                 gl.enable_vertex_attrib_array(position);
                 
                 // Calculate the transformation matrix for the cube
                 let mut matrix = utils::vec4_projection(GAME_WIDTH as f32, GAME_HEIGHT as f32, 400.0);
-                let trans = utils::vec4_translate(self.square.loc.x as f32, self.square.loc.y as f32, self.square.loc.z as f32);
+                let trans = utils::vec4_translate(self.cube.loc.x as f32, self.cube.loc.y as f32, self.cube.loc.z as f32);
                 matrix = utils::matrix4_multiply(matrix, trans);
-                matrix =utils::matrix4_multiply(matrix, utils::vec4_x_rotation(self.square.rot.x as f32));
-                matrix = utils::matrix4_multiply(matrix, utils::vec4_y_rotation(self.square.rot.y as f32));
-                matrix = utils::matrix4_multiply(matrix, utils::vec4_z_rotation(self.square.rot.z as f32));
+                matrix =utils::matrix4_multiply(matrix, utils::vec4_x_rotation(self.cube.rot.x as f32));
+                matrix = utils::matrix4_multiply(matrix, utils::vec4_y_rotation(self.cube.rot.y as f32));
+                matrix = utils::matrix4_multiply(matrix, utils::vec4_z_rotation(self.cube.rot.z as f32));
                 
                 let matrix_location = gl.get_uniform_location(&shader, "u_matrix");// as u32 ;
                 gl.uniform_matrix4fv_with_f32_array(matrix_location.as_ref(), false, &matrix);
@@ -289,10 +289,11 @@ impl GameControl {
         gl.viewport(0, 0, GAME_WIDTH as i32, GAME_HEIGHT as i32);
         gl.clear_color(0.1, 0.1, 0.1, 1.0);
         gl.clear(GL::COLOR_BUFFER_BIT);
-
-        match self.square.shader {
+        // gl.enable(GL::CULL_FACE);
+        gl.enable(GL::DEPTH_TEST);
+        match self.cube.shader {
             Some(_) => {
-                gl.draw_arrays(GL::TRIANGLES, 0, self.square.vertices.len() as i32 / 3);
+                gl.draw_arrays(GL::TRIANGLES, 0, self.cube.vertices.len() as i32 / 3);
             
             }, 
             None => {}
