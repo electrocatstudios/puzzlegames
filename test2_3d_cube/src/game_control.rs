@@ -294,8 +294,7 @@ impl GameControl {
         match self.cube.shader {
             Some(_) => {
                 gl.draw_arrays(GL::TRIANGLES, 0, self.cube.vertices.len() as i32 / 3);
-            
-            }, 
+            },
             None => {}
         }
            
