@@ -6,9 +6,9 @@ uniform float rot;
 varying vec4 v_positionWithOffset;
 
 void main() {
-    float r = 1.0 * (v_positionWithOffset[0]/50.0);
-    float g = 1.0 * (v_positionWithOffset[1]/50.0);
-    float b = 1.0 * (v_positionWithOffset[2]/50.0);
+    float r = 0.2 + (0.8 * (v_positionWithOffset[0]/70.0));
+    float g = 0.2 + (0.8 * (v_positionWithOffset[1]/70.0));
+    float b = 0.2 + (0.8 * (v_positionWithOffset[2]/70.0));
 
     gl_FragColor = vec4(r, g, b, 1.0);
 }
