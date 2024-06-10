@@ -9,9 +9,6 @@ use gloo_net::http::Request;
 
 use std::collections::HashMap;
 
-use core::cell::RefCell;
-use std::rc::Rc;
-
 use crate::components::cube::Cube;
 use crate::components::mouse_handler::MouseHandler;
 use crate::utils;
@@ -20,6 +17,7 @@ pub struct GameControl {
     pub mouse: MouseHandler,
     canvas: NodeRef,
     cube: Cube,
+    background_cubes: Vec::<Cube>,
     callback: Closure<dyn FnMut()>,
     last_update: f64,
     cur_time: f64,
@@ -55,10 +53,14 @@ impl Component for GameControl {
 
         ctx.link().send_message(GameMsg::Render);
 
+        let mut cube_vec = Vec::<Cube>::new();
+        cube_vec.push(Cube::new(200.0,200.0, 100.0));
+
         GameControl{
             mouse: MouseHandler::new(),
             canvas: NodeRef::default(),
             cube: Cube::new(400.0,400.0,0.0),
+            background_cubes: cube_vec,
             callback: callback,
             last_update: Date::now(),
             cur_time: 0.0,
@@ -69,9 +71,8 @@ impl Component for GameControl {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool{
         match msg {
-            GameMsg::MouseDown(evt) => {
+            GameMsg::MouseDown(_evt) => {
                 self.mouse.mouse_down = true;
-                
                 true
             },
             GameMsg::MouseUp(_evt) => {
@@ -91,7 +92,7 @@ impl Component for GameControl {
                 true
             },
             GameMsg::Update => {
-                self.game_update();
+                // self.game_update();
                 false
             }
             GameMsg::Render => {
@@ -138,11 +139,10 @@ impl Component for GameControl {
         }
     }
 
-    fn rendered(&mut self, ctx: &Context<Self>, first_render: bool) { 
+    fn rendered(&mut self, _ctx: &Context<Self>, first_render: bool) { 
         if first_render {
             self.setup_gl();
         }
-
     }
 
 }
@@ -156,7 +156,7 @@ impl GameControl {
         let cur_time = Date::now();
         let diff = cur_time - self.last_update;
 
-        let frac = diff; // / 1000.0; // Fraction of a second
+        let _frac = diff; // / 1000.0; // Fraction of a second
         self.rotation += diff;
 
         self.cur_time = cur_time;
@@ -243,17 +243,21 @@ impl GameControl {
         gl.link_program(&shader_program);
 
         gl.use_program(Some(&shader_program));
-        self.cube.shader = Some(shader_program);
+        self.cube.shader = Some(shader_program.clone());
         
+        for c in self.background_cubes.iter_mut() {
+            c.shader = Some(shader_program.clone());
+        }
+
         gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer) );
     }
 
-    fn render_gl(&mut self,  ctx: &Context<GameControl>) {
+    fn render_gl(&mut self,  _ctx: &Context<GameControl>) {
 
         self.game_update();
 
         let canvas = self.canvas.cast::<HtmlCanvasElement>().unwrap();
-       
+
         let gl: GL = canvas
             .get_context("webgl")
             .unwrap()
@@ -284,6 +288,30 @@ impl GameControl {
 
             }, 
             None => {}
+        }
+
+        for c in self.background_cubes.iter() {
+            match &c.shader {
+                Some(shader) => {
+                    
+                    let position = gl.get_attrib_location(&shader, "a_position") as u32 ;
+                    gl.vertex_attrib_pointer_with_f64(position, 3, GL::FLOAT, false, 0, 0.0);
+                    gl.enable_vertex_attrib_array(position);
+                    
+                    // Calculate the transformation matrix for the cube
+                    let mut matrix = utils::vec4_projection(GAME_WIDTH as f32, GAME_HEIGHT as f32, 400.0);
+                    let trans = utils::vec4_translate(c.loc.x as f32, c.loc.y as f32, c.loc.z as f32);
+                    matrix = utils::matrix4_multiply(matrix, trans);
+                    matrix =utils::matrix4_multiply(matrix, utils::vec4_x_rotation(c.rot.x as f32));
+                    matrix = utils::matrix4_multiply(matrix, utils::vec4_y_rotation(c.rot.y as f32));
+                    matrix = utils::matrix4_multiply(matrix, utils::vec4_z_rotation(c.rot.z as f32));
+                    
+                    let matrix_location = gl.get_uniform_location(&shader, "u_matrix");// as u32 ;
+                    gl.uniform_matrix4fv_with_f32_array(matrix_location.as_ref(), false, &matrix);
+    
+                }, 
+                None => {}
+            } 
         }
         
         gl.viewport(0, 0, GAME_WIDTH as i32, GAME_HEIGHT as i32);

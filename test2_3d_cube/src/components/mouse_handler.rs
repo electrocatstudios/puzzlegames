@@ -9,9 +9,6 @@ pub struct MouseHandler {
     pub mouse_down: bool,
 }
 
-const CLICK_INDICATOR_GROWTH_SPEED: f64 = 0.06;
-const CLICK_INDICATOR_MAX_SIZE: f64 = 20.0;
-
 impl MouseHandler {
     pub fn new() -> Self {
         MouseHandler {
@@ -20,11 +17,10 @@ impl MouseHandler {
         }
     }
 
-    pub fn update(&mut self, delta: f64) {
-        
+    pub fn _update(&mut self, _delta: f64) {
     }
 
-    pub fn click(&mut self, x: f64, y: f64) {
+    pub fn _click(&mut self, _x: f64, _y: f64) {
     }
 
     pub fn update_pos(&mut self, x: f64, y: f64) {
@@ -32,7 +28,7 @@ impl MouseHandler {
         self.loc.y = y;
     }
 
-    pub fn render(&mut self, ctx: &mut CanvasRenderingContext2d) {
+    pub fn _render(&mut self, _ctx: &mut CanvasRenderingContext2d) {
     
     }
 }
