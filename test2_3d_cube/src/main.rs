@@ -7,7 +7,7 @@ mod utils;
 
 #[derive(Clone, Routable, PartialEq)]
 enum Route {
-    #[at("/")]
+    #[at("/webgl_cube")]
     Home,
 }
 

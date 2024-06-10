@@ -7,6 +7,7 @@ use crate::utils::Point;
 pub struct MouseHandler {
     pub loc: Point::<f64>,
     pub mouse_down: bool,
+    pub mouse_move: Point::<f64>
 }
 
 const CLICK_INDICATOR_GROWTH_SPEED: f64 = 0.06;
@@ -17,6 +18,7 @@ impl MouseHandler {
         MouseHandler {
             loc: Point::new(0.0,0.0),
             mouse_down: false,
+            mouse_move: Point::new(0.0,0.0)
         }
     }
 

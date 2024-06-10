@@ -31,6 +31,9 @@ pub enum GameMsg {
     MouseDown((f64, f64)),
     MouseUp((f64,f64)),
     MouseMove((f64,f64)),
+    TouchStart((f64, f64)),
+    TouchEnd((f64, f64)),
+    TouchMove((f64, f64)),
     KeyDown(String),
     KeyUp(String),
     Update,
@@ -43,6 +46,8 @@ pub struct GameControlProps;
 
 pub const GAME_HEIGHT: f64 = 800.0;
 pub const GAME_WIDTH: f64 = 1280.0;
+
+pub const MOUSE_ROTATE_DAMPING_FACTOR: f64 = 0.01;
 
 impl Component for GameControl {
     type Message = GameMsg;
@@ -58,7 +63,7 @@ impl Component for GameControl {
         GameControl{
             mouse: MouseHandler::new(),
             canvas: NodeRef::default(),
-            cube: Cube::new(400.0,400.0,0.0),
+            cube: Cube::new(150.0,150.0,0.0),
             callback: callback,
             last_update: Date::now(),
             cur_time: 0.0,
@@ -79,7 +84,32 @@ impl Component for GameControl {
                 true
             },
             GameMsg::MouseMove(evt) => {
+                if self.mouse.mouse_down {
+                    self.mouse.mouse_move.x = (self.mouse.loc.x - evt.0) * MOUSE_ROTATE_DAMPING_FACTOR;
+                    self.mouse.mouse_move.y = (self.mouse.loc.y - evt.1) * MOUSE_ROTATE_DAMPING_FACTOR;
+                }
                 self.mouse.update_pos(evt.0, evt.1);
+                
+                true
+            },
+            GameMsg::TouchStart(evt) => {
+                // log!("Event here TouchStart => ", evt.0, evt.1);
+                self.mouse.mouse_down = true;
+                self.mouse.update_pos(evt.0, evt.1);
+                true
+            },
+            GameMsg::TouchEnd(_evt) => {
+                // log!("Event here TouchEnd => ", evt.0, evt.1);
+                self.mouse.mouse_down = false;
+                true
+            },
+            GameMsg::TouchMove(evt) => {
+                if self.mouse.mouse_down {
+                    self.mouse.mouse_move.x = (self.mouse.loc.x - evt.0) * MOUSE_ROTATE_DAMPING_FACTOR;
+                    self.mouse.mouse_move.y = (self.mouse.loc.y - evt.1) * MOUSE_ROTATE_DAMPING_FACTOR;
+                }
+                self.mouse.update_pos(evt.0, evt.1);
+                // log!("Event here TouchMove => ", evt.0, evt.1);
                 true
             },
             GameMsg::KeyDown(key) => {
@@ -121,7 +151,27 @@ impl Component for GameControl {
         let onkeyup = ctx.link().callback(move |evt: KeyboardEvent| {
             GameMsg::KeyUp(evt.code())
         });
-
+        let ontouchstart = ctx.link().callback(move |evt: TouchEvent | {
+            evt.prevent_default();
+            match evt.touches().get(0) {
+                Some(touch) => GameMsg::TouchStart((touch.page_x() as f64, touch.page_y() as f64)),
+                None => GameMsg::Null,
+            }
+        });
+        let ontouchend = ctx.link().callback(move |evt: TouchEvent | {
+            evt.prevent_default();
+            match evt.touches().get(0) {
+                Some(touch) => GameMsg::TouchEnd((touch.page_x() as f64, touch.page_y() as f64)),
+                None => GameMsg::Null,
+            }
+        });
+        let ontouchmove = ctx.link().callback(move |evt: TouchEvent | {
+            evt.prevent_default();
+            match evt.touches().get(0) {
+                Some(touch) => GameMsg::TouchMove((touch.page_x() as f64, touch.page_y() as f64)),
+                None => GameMsg::Null,
+            }
+        });
         html! { 
             <div class="game_canvas">
                 <canvas id="canvas"
@@ -129,6 +179,9 @@ impl Component for GameControl {
                     onmousedown={onmousedown}
                     onmousemove={onmousemove}
                     onmouseup={onmouseup}
+                    ontouchstart={ontouchstart}
+                    ontouchend={ontouchend}
+                    ontouchmove={ontouchmove}
                     onkeydown={onkeydown}
                     onkeyup={onkeyup}
                     ref={self.canvas.clone()}
@@ -161,6 +214,7 @@ impl GameControl {
 
         self.cur_time = cur_time;
 
+        // Movement up/down/left/right
         if utils::is_key_pressed(&self.key_list, &"KeyA".to_string()) {
             self.cube.loc.x -= diff * CUBE_MOVE_SPEED;
         }
@@ -173,28 +227,55 @@ impl GameControl {
         if utils::is_key_pressed(&self.key_list, &"KeyS".to_string()) {
             self.cube.loc.y += diff * CUBE_MOVE_SPEED;
         }
-        if utils::is_key_pressed(&self.key_list, &"KeyT".to_string()) {
-            self.cube.rot.x += diff * CUBE_SPIN_SPEED;
-        }
-        if utils::is_key_pressed(&self.key_list, &"KeyY".to_string()) {
-            self.cube.rot.y += diff * CUBE_SPIN_SPEED;
-        }
-        if utils::is_key_pressed(&self.key_list, &"KeyU".to_string()) {
-            self.cube.rot.z += diff * CUBE_SPIN_SPEED;
-        }
 
+        // Bounds check - for viewport
         if self.cube.loc.x > 1280.0 {
             self.cube.loc.x = 1280.0;
         } else if self.cube.loc.x < 0.0 {
             self.cube.loc.x = 0.0;
         }
-
         if self.cube.loc.y > 800.0 {
             self.cube.loc.y = 800.0;
         }
         if self.cube.loc.y < 0.0 {
             self.cube.loc.y = 0.0;
         }
+        // End Bounds check
+
+        self.cube.rot.x += self.mouse.mouse_move.y;
+        self.cube.rot.y += self.mouse.mouse_move.x;
+
+        // Up-down rotation
+        if utils::is_key_pressed(&self.key_list, &"KeyT".to_string()) {
+            self.cube.rot.x += diff * CUBE_SPIN_SPEED;
+        }
+        if utils::is_key_pressed(&self.key_list, &"KeyG".to_string()) {
+            self.cube.rot.x -= diff * CUBE_SPIN_SPEED;
+        }
+        // Boundry check up/down rot - limited to +1.0 / -1.0
+        if self.cube.rot.x > 1.0 {
+            self.cube.rot.x = 1.0;
+        }
+        if self.cube.rot.x < -1.0 {
+            self.cube.rot.x = -1.0;
+        }
+
+        // Rotation side-to-side
+        if utils::is_key_pressed(&self.key_list, &"KeyY".to_string()) {
+            self.cube.rot.y += diff * CUBE_SPIN_SPEED;
+        }
+        if utils::is_key_pressed(&self.key_list, &"KeyU".to_string()) {
+            self.cube.rot.y -= diff * CUBE_SPIN_SPEED;
+        }
+
+        // Rotation bounds - always be between 0 and 2*pi
+        if self.cube.rot.y > 2.0 * std::f64::consts::PI {
+            self.cube.rot.y -= 2.0 * std::f64::consts::PI
+        }
+        if self.cube.rot.y < 0.0 {
+            self.cube.rot.y += 2.0 * std::f64::consts::PI
+        }
+
         self.last_update = cur_time;
     }
 
