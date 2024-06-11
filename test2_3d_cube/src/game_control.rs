@@ -59,8 +59,12 @@ impl Component for GameControl {
         ctx.link().send_message(GameMsg::Render);
 
         let mut cube_vec = Vec::<Cube>::new();
-        cube_vec.push(Cube::new(200.0,200.0, 100.0));
-
+        for i in 1..6 {
+            cube_vec.push(Cube::new(i as f64 * 200.0,200.0, 100.0));
+            cube_vec.push(Cube::new(i as f64 * 200.0, 400.0, 100.0));
+            cube_vec.push(Cube::new(i as f64 * 200.0, 600.0, 100.0));
+        }
+       
         GameControl{
             mouse: MouseHandler::new(),
             canvas: NodeRef::default(),
@@ -275,7 +279,11 @@ impl GameControl {
         if self.cube.rot.y < 0.0 {
             self.cube.rot.y += 2.0 * std::f64::consts::PI
         }
-
+        for c in self.background_cubes.iter_mut() {
+            c.rot.x -= diff * (CUBE_SPIN_SPEED / 10.0);
+            c.rot.y -= diff * (CUBE_SPIN_SPEED / 10.0);
+            c.rot.z -= diff * (CUBE_SPIN_SPEED / 10.0);
+        }
         self.last_update = cur_time;
     }
 
@@ -299,38 +307,13 @@ impl GameControl {
             .unwrap();
 
 
-        let vert_code = include_str!("./basic.vert");
-        let frag_code = include_str!("./basic.frag");
-
-        let vertex_buffer = gl.create_buffer().unwrap();
         let verts = js_sys::Float32Array::from(self.cube.vertices.as_slice());
-
-        gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
-        gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &verts, GL::STATIC_DRAW);
-        gl.bind_buffer(GL::ARRAY_BUFFER, None);
-
-        let vert_shader = gl.create_shader(GL::VERTEX_SHADER).unwrap();
-        gl.shader_source(&vert_shader, vert_code);
-        gl.compile_shader(&vert_shader);
-
-        let frag_shader = gl.create_shader(GL::FRAGMENT_SHADER).unwrap();
-        gl.shader_source(&frag_shader, frag_code);
-        gl.compile_shader(&frag_shader);
-
-        let shader_program = gl.create_program().unwrap();
-        
-        gl.attach_shader(&shader_program, &vert_shader);
-        gl.attach_shader(&shader_program, &frag_shader);
-        gl.link_program(&shader_program);
-
-        gl.use_program(Some(&shader_program));
-        self.cube.shader = Some(shader_program.clone());
+        self.cube.shader = utils::get_shader_program(&gl, "./assets/basic.vert", "./assets/basic.frag", verts.clone());
         
         for c in self.background_cubes.iter_mut() {
-            c.shader = Some(shader_program.clone());
+            c.shader = utils::get_shader_program(&gl, "./assets/basic.vert", "./assets/basic.frag", verts.clone());
         }
 
-        gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer) );
     }
 
     fn render_gl(&mut self,  _ctx: &Context<GameControl>) {
@@ -346,12 +329,16 @@ impl GameControl {
             .dyn_into()
             .unwrap();
 
-        let mut timestamp = 0.0;
+        gl.viewport(0, 0, GAME_WIDTH as i32, GAME_HEIGHT as i32);
+        gl.clear_color(0.1, 0.1, 0.1, 1.0);
+        gl.clear(GL::COLOR_BUFFER_BIT);
+        // gl.enable(GL::CULL_FACE);
+        gl.enable(GL::DEPTH_TEST);
 
         // Attach the position vector as an attribute for the GL context.
         match &self.cube.shader {
             Some(shader) => {
-                
+                gl.use_program(Some(&shader));
                 let position = gl.get_attrib_location(&shader, "a_position") as u32 ;
                 gl.vertex_attrib_pointer_with_f64(position, 3, GL::FLOAT, false, 0, 0.0);
                 gl.enable_vertex_attrib_array(position);
@@ -366,7 +353,9 @@ impl GameControl {
                 
                 let matrix_location = gl.get_uniform_location(&shader, "u_matrix");// as u32 ;
                 gl.uniform_matrix4fv_with_f32_array(matrix_location.as_ref(), false, &matrix);
+                gl.draw_arrays(GL::TRIANGLES, 0, self.cube.vertices.len() as i32 / 3);
 
+                gl.use_program(None);
             }, 
             None => {}
         }
@@ -374,7 +363,7 @@ impl GameControl {
         for c in self.background_cubes.iter() {
             match &c.shader {
                 Some(shader) => {
-                    
+                    gl.use_program(Some(&shader));
                     let position = gl.get_attrib_location(&shader, "a_position") as u32 ;
                     gl.vertex_attrib_pointer_with_f64(position, 3, GL::FLOAT, false, 0, 0.0);
                     gl.enable_vertex_attrib_array(position);
@@ -389,24 +378,14 @@ impl GameControl {
                     
                     let matrix_location = gl.get_uniform_location(&shader, "u_matrix");// as u32 ;
                     gl.uniform_matrix4fv_with_f32_array(matrix_location.as_ref(), false, &matrix);
-    
+                    gl.draw_arrays(GL::TRIANGLES, 0, c.vertices.len() as i32 / 3);
+
+                    gl.use_program(None);
                 }, 
                 None => {}
             } 
         }
-        
-        gl.viewport(0, 0, GAME_WIDTH as i32, GAME_HEIGHT as i32);
-        gl.clear_color(0.1, 0.1, 0.1, 1.0);
-        gl.clear(GL::COLOR_BUFFER_BIT);
-        // gl.enable(GL::CULL_FACE);
-        gl.enable(GL::DEPTH_TEST);
-        match self.cube.shader {
-            Some(_) => {
-                gl.draw_arrays(GL::TRIANGLES, 0, self.cube.vertices.len() as i32 / 3);
-            },
-            None => {}
-        }
-           
+
         window()
             .unwrap()
             .request_animation_frame(self.callback.as_ref().unchecked_ref())

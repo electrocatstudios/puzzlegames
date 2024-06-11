@@ -1,6 +1,8 @@
 use wasm_bindgen::JsValue;
-use web_sys::CanvasRenderingContext2d;
-use std::collections::HashMap;
+use web_sys::{CanvasRenderingContext2d, WebGlProgram, WebGlRenderingContext as GL};
+// use web_sys::{ , WebGlShader, WebGlProgram
+use std::{collections::HashMap, fs};
+use gloo_console::log; 
 
 pub struct Point3<T> {
     pub x: T,
@@ -159,5 +161,40 @@ pub fn matrix4_multiply(a: [f32;16], b: [f32;16]) -> [f32;16] {
         b30 * a02 + b31 * a12 + b32 * a22 + b33 * a32,
         b30 * a03 + b31 * a13 + b32 * a23 + b33 * a33,
     ]
-      
+}
+
+pub fn get_shader_program(gl: &GL, _vert_name: &str, _frag_name: &str, verts: js_sys::Float32Array) -> Option<WebGlProgram> {
+    // let vert_code = fs::read_to_string(vert_name).unwrap(); //vert_name; // include_str!("./basic.vert");
+    // let frag_code = fs::read_to_string(frag_name).unwrap(); // include_str!("./basic.frag");
+    let vert_code = include_str!("basic.vert");
+    let frag_code = include_str!("basic.frag");
+    
+    log!(vert_code);
+
+    let vertex_buffer = gl.create_buffer().unwrap();
+
+    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer));
+    gl.buffer_data_with_array_buffer_view(GL::ARRAY_BUFFER, &verts, GL::STATIC_DRAW);
+    gl.bind_buffer(GL::ARRAY_BUFFER, None);
+
+    let vert_shader = gl.create_shader(GL::VERTEX_SHADER).unwrap();
+    gl.shader_source(&vert_shader, vert_code);
+    gl.compile_shader(&vert_shader);
+
+    let frag_shader = gl.create_shader(GL::FRAGMENT_SHADER).unwrap();
+    gl.shader_source(&frag_shader, frag_code);
+    gl.compile_shader(&frag_shader);
+
+    let shader_program = gl.create_program().unwrap();
+    
+    gl.attach_shader(&shader_program, &vert_shader);
+    gl.attach_shader(&shader_program, &frag_shader);
+    gl.link_program(&shader_program);
+
+    gl.use_program(Some(&shader_program));
+
+    gl.bind_buffer(GL::ARRAY_BUFFER, Some(&vertex_buffer) );
+    gl.use_program(None);
+
+    Some(shader_program)
 }

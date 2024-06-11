@@ -54,7 +54,7 @@ impl Cube {
             50.0, -50.0, 50.0,
             50.0, -50.0, -50.0, 
         ];
-        
+
         Cube {
             rot: Point3::new(0.0,0.0,0.5),
             loc: Point3::new(x,y,z),
