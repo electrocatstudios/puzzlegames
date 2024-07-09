@@ -2,12 +2,11 @@ use wasm_bindgen::JsValue;
 use web_sys::CanvasRenderingContext2d;
 use rapier2d::{parry::query, prelude::*};
 use gloo_console::log;
+use crate::utils::Point;
 
 pub struct RopeManager{
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
-    // rigid_body: RigidBody,
-    // collider: Collider,
     ball_body_handle: RigidBodyHandle,
     gravity: Vector<Real>,
     integration_parameters: IntegrationParameters,
@@ -37,7 +36,7 @@ impl RopeManager {
         let rigid_body = RigidBodyBuilder::dynamic()
             .translation(vector![0.0, 10.0])
             .build();
-        let collider = ColliderBuilder::ball(0.5).restitution(0.7).build();
+        let collider = ColliderBuilder::ball(0.5).restitution(1.75).build();
         let ball_body_handle = rigid_body_set.insert(rigid_body);
         collider_set.insert_with_parent(collider, ball_body_handle, &mut rigid_body_set);
 
@@ -57,8 +56,6 @@ impl RopeManager {
         RopeManager {
             rigid_body_set: rigid_body_set,
             collider_set: collider_set,
-            // rigid_body: rigid_body,
-            // collider: collider,
             ball_body_handle: ball_body_handle,
             gravity: gravity,
             integration_parameters: integration_parameters,
@@ -91,9 +88,6 @@ impl RopeManager {
             &self.hooks,
             &self.events,
         );
-
-        
-       
     }
     
     pub fn render(&mut self, ctx: &mut CanvasRenderingContext2d) {
@@ -114,6 +108,12 @@ impl RopeManager {
                     std::f64::consts::PI * 2.0
                 );
         let _ = ctx.fill();
-        // log!("Ball altitude: {}", ball_body.translation().y);
+    }
+
+    pub fn set_ball_pos(&mut self, pt: Point::<f32>) {
+        let mut ball_body = self.rigid_body_set.get_mut(self.ball_body_handle).unwrap();
+        ball_body.set_translation(vector![0.0, pt.y], true);
+        ball_body.set_linvel(vector![0.0, 0.0], true);
+        ball_body.set_angvel(0.0, true);
     }
 }

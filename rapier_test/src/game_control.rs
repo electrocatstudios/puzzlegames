@@ -5,9 +5,12 @@ use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::window;
 use js_sys::Date;
 use gloo_console::log;
+use std::collections::HashMap;
 
+
+use crate::utils::Point;
 use crate::rope_manager::RopeManager;
-
+use crate::utils::is_key_pressed;
 use super::mouse_handler::MouseHandler;
 
 pub struct GameControl {
@@ -17,6 +20,7 @@ pub struct GameControl {
     callback: Closure<dyn FnMut()>,
     last_update: f64,
     cur_time: f64,
+    key_list: HashMap<String, bool>,
 }
 
 pub enum GameMsg {
@@ -56,6 +60,7 @@ impl Component for GameControl {
             callback: callback,
             last_update: Date::now(),
             cur_time: 0.0,
+            key_list: HashMap::new(),
         }
     }
 
@@ -91,10 +96,12 @@ impl Component for GameControl {
                 // log!("Event here TouchMove => ", evt.0, evt.1);
                 true
             },
-            GameMsg::KeyDown(_key) => {
+            GameMsg::KeyDown(key) => {
+                *self.key_list.entry(key).or_insert(true) = true;
                 true
             },
-            GameMsg::KeyUp(_key) => {
+            GameMsg::KeyUp(key) => {
+                *self.key_list.entry(key).or_insert(true) = false;
                 true
             },
             GameMsg::Render => {
@@ -172,7 +179,10 @@ impl GameControl {
         self.last_update = cur_time;
 
         self.mouse.update(diff);
-        
+        if is_key_pressed(&self.key_list, &"KeyR".to_string()) {
+            // Reset the ball position to start
+            self.rope_manager.set_ball_pos(Point::<f32>::new(0.0, 10.0));
+        }
         self.rope_manager.update(diff);
 
     }

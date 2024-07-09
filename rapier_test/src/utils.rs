@@ -1,5 +1,6 @@
 use wasm_bindgen::JsValue;
 use web_sys::CanvasRenderingContext2d;
+use std::collections::HashMap;
 
 pub struct Point<T> {
     pub x: T,
@@ -76,4 +77,13 @@ pub fn dist_between_points(pt1: Point<f64>, pt2: Point<f64>) -> f64 {
     let diff_x = pt1.x - pt2.x;
     let diff_y = pt1.y - pt2.y;
     ((diff_x*diff_x) + (diff_y*diff_y)).sqrt()
+}
+
+pub fn is_key_pressed(keys: &HashMap<String,bool>, key: &String) -> bool {
+    match keys.get(key) {
+        Some(val) => {
+            *val
+        },
+        None => false
+    } 
 }
