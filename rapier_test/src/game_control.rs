@@ -6,9 +6,12 @@ use web_sys::window;
 use js_sys::Date;
 use gloo_console::log;
 
+use crate::rope_manager::RopeManager;
+
 use super::mouse_handler::MouseHandler;
 
 pub struct GameControl {
+    rope_manager: RopeManager,
     pub mouse: MouseHandler,
     canvas: NodeRef,
     callback: Closure<dyn FnMut()>,
@@ -47,6 +50,7 @@ impl Component for GameControl {
         ctx.link().send_message(GameMsg::Render);
 
         GameControl{
+            rope_manager: RopeManager::new(),
             mouse: MouseHandler::new(),
             canvas: NodeRef::default(),
             callback: callback,
@@ -169,6 +173,8 @@ impl GameControl {
 
         self.mouse.update(diff);
         
+        self.rope_manager.update(diff);
+
     }
 
     fn render(&mut self) {
@@ -195,7 +201,8 @@ impl GameControl {
         ctx.line_to(0.0, 0.0);
         ctx.stroke();
         
-        // Level string
+        self.rope_manager.render(&mut ctx);
+
         self.mouse.render(&mut ctx);
 
         window()

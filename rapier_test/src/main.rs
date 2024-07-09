@@ -6,6 +6,7 @@ use gloo_console::log;
 mod game_control;
 mod mouse_handler;
 mod utils;
+mod rope_manager;
 
 #[derive(Clone, Routable, PartialEq)]
 enum Route {
