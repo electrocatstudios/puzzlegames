@@ -89,14 +89,14 @@ impl RopeManager {
             &self.events,
         );
     }
-    
+
     pub fn render(&mut self, ctx: &mut CanvasRenderingContext2d) {
         let ball_body = &self.rigid_body_set[self.ball_body_handle];
 
         ctx.set_fill_style(&JsValue::from("rgb(55, 255, 55)"));
         let half_box_width = (SCALE * 2.0) / 2.0;
         ctx.fill_rect((SCALE * 10.0) - half_box_width, SCALE * 10.0, SCALE * 2.0, SCALE * 0.1);
-        
+
         ctx.set_fill_style(&JsValue::from("rgb(255, 255, 55)"));
 
         let _ = ctx.begin_path();
