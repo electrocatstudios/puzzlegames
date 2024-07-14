@@ -214,11 +214,16 @@ impl RopeManager {
     }
 
     pub fn set_ball_pos(&mut self, pt: Point::<f32>) {
-        let mut ball_body = self.rigid_body_set.get_mut(self.ball_handles[MAX_JOINT_SET as usize - 1]).unwrap();
+        let ball_body = self.rigid_body_set.get_mut(self.ball_handles[MAX_JOINT_SET as usize - 1]).unwrap();
         ball_body.set_translation(vector![pt.x, pt.y], true);
         ball_body.set_linvel(vector![0.0, 0.0], true);
         ball_body.set_angvel(0.0, true);
 
+        self.reset_vel();
+
+    }
+
+    pub fn reset_vel(&mut self) {
         for bb in self.ball_handles.iter_mut() {
             let brbs = self.rigid_body_set.get_mut(*bb);
             match brbs {
@@ -229,7 +234,6 @@ impl RopeManager {
                 None => {}
             }     
         }
-
     }
     
 }

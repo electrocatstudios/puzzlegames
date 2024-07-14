@@ -78,6 +78,9 @@ impl Component for GameControl {
             },
             GameMsg::MouseMove(evt) => {
                 self.mouse.update_pos(evt.0, evt.1);
+                if self.mouse.mouse_down {
+                    self.rope_manager.set_ball_pos(Point::new(evt.0 as f32, evt.1 as f32));
+                }
                 // log!("Event here => ", self.mousehandler.offset_x, self.mousehandler.offset_y);
                 true
             },
@@ -184,6 +187,10 @@ impl GameControl {
             self.rope_manager.set_ball_pos(Point::<f32>::new(0.0, 10.0));
         }
         self.rope_manager.update(diff);
+
+        if self.mouse.mouse_down {
+            self.rope_manager.reset_vel();
+        }
 
     }
 
